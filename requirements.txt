@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+playwright
+streamlit
+requests
+beautifulsoup4
+pillow
+opencv-python
+python-dotenv
+sqlalchemy
+pymysql
