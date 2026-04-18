@@ -18,7 +18,8 @@ async def analyze_website(url: str):
     and captures a screenshot.
     """
     results = {
-        "title": "",
+        "url": url,
+        "page_title": "",
         "links": [],
         "console_errors": [],
         "screenshot_path": "",
@@ -41,7 +42,7 @@ async def analyze_website(url: str):
             await page.goto(url, wait_until="networkidle", timeout=60000)
 
             # Extract Page Title
-            results["title"] = await page.title()
+            results["page_title"] = await page.title()
 
             # Extract All Links
             links = await page.query_selector_all("a")

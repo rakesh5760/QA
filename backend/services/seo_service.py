@@ -33,14 +33,19 @@ def analyze_seo(html_content: str):
         results["issues"].append("Missing <meta name='description'> tag")
 
     # 3. Analyze Headings
-    results["h1_count"] = len(soup.find_all("h1"))
-    results["h2_count"] = len(soup.find_all("h2"))
-    results["h3_count"] = len(soup.find_all("h3"))
+    results["headings"] = {
+        "h1": len(soup.find_all("h1")),
+        "h2": len(soup.find_all("h2")),
+        "h3": len(soup.find_all("h3")),
+        "h4": len(soup.find_all("h4")),
+        "h5": len(soup.find_all("h5")),
+        "h6": len(soup.find_all("h6")),
+    }
 
-    if results["h1_count"] == 0:
+    if results["headings"]["h1"] == 0:
         results["issues"].append("No <h1> tag found")
-    elif results["h1_count"] > 1:
-        results["issues"].append(f"Multiple <h1> tags found ({results['h1_count']})")
+    elif results["headings"]["h1"] > 1:
+        results["issues"].append(f"Multiple <h1> tags found ({results['headings']['h1']})")
 
     # 4. Analyze Images
     images = soup.find_all("img")
