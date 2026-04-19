@@ -6,7 +6,7 @@ from backend.models.db_models import TestResult
 from backend.services.playwright_service import analyze_website
 import json
 
-# Create tables on startup
+# Create tables on startup web
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="AI-Based Intelligent QA Automation API")
