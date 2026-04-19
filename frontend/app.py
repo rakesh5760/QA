@@ -79,7 +79,22 @@ if menu == "Run New Analysis":
             st.subheader(f"Target: {result.get('url', 'Unknown')}")
             st.info(f"Page Title: {result.get('page_title', 'No Title Found')}")
             
-            tabs = st.tabs(["💡 AI Insights", "🔍 SEO Analysis", "❌ Bug Report"])
+            # SEO Score Display
+            score_data = result.get("seo_score_data", {})
+            total_score = score_data.get("seo_score", 0)
+            
+            st.write("---")
+            m1, m2, m3, m4, m5 = st.columns(5)
+            m1.metric("Overall Score", f"{total_score}/100")
+            
+            cats = score_data.get("category_scores", {})
+            m2.metric("On-Page", f"{cats.get('on_page', 0)}")
+            m3.metric("Technical", f"{cats.get('technical', 0)}")
+            m4.metric("Performance", f"{cats.get('performance', 0)}")
+            m5.metric("Accessibility", f"{cats.get('accessibility', 0)}")
+            st.write("---")
+
+            tabs = st.tabs(["💡 AI Insights", "🔍 SEO Analysis", "❌ Bug Report", "🛡️ QA Health Audit"])
             
             with tabs[0]:
                 ai = result.get("ai_insights", {}) or {}
@@ -141,6 +156,56 @@ if menu == "Run New Analysis":
                         url_val = s.get('url', 'N/A') if isinstance(s, dict) else str(s)
                         st.write(f"- {url_val}")
 
+            with tabs[3]:
+                qa = result.get("qa_checks", {})
+                
+                st.write("### 🚀 Speed & Status")
+                c1, c2 = st.columns(2)
+                c1.metric("Load Time", f"{qa.get('load_time', 0)}s")
+                c2.metric("Page Status", qa.get("page_status", "Unknown"))
+                
+                st.write("### 🧩 UI Elements")
+                ui = qa.get("ui_elements", {})
+                u1, u2, u3 = st.columns(3)
+                u1.metric("Buttons", ui.get("buttons_count", 0))
+                u2.metric("Input Fields", ui.get("inputs_count", 0))
+                u3.metric("Forms", ui.get("forms_count", 0))
+                
+                if ui.get("buttons_missing_label", 0) > 0:
+                    st.warning(f"⚠️ {ui.get('buttons_missing_label')} buttons are missing text or labels!")
+
+                st.write("### 📋 QA Issues")
+                issues = qa.get("issues", [])
+                if issues:
+                    for issue in issues:
+                        st.write(f"- {issue}")
+                else:
+                    st.success("No automated QA issues detected.")
+
+                st.write("### 💻 Console Logs")
+                errs = qa.get("console_errors", [])
+                warns = qa.get("console_warnings", [])
+                
+                if errs:
+                    st.error(f"Errors ({len(errs)})")
+                    for e in errs[:10]: st.code(e)
+                if warns:
+                    st.warning(f"Warnings ({len(warns)})")
+                    for w in warns[:10]: st.code(w)
+                if not errs and not warns:
+                    st.info("No console logs captured.")
+
+            # Added Technical & Performance info at the bottom of the overview area
+            with st.expander("🛠️ Technical & Performance Details"):
+                seo_analysis = result.get("seo_analysis", {})
+                issues = seo_analysis.get("issues", [])
+                if issues:
+                    st.write("**Identified Issues:**")
+                    for issue in issues:
+                        st.write(f"- {issue}")
+                else:
+                    st.success("No major SEO issues identified!")
+
         with col2:
             st.header("📸 Screenshot")
             screenshot_path = result.get("screenshot_path")
@@ -171,9 +236,11 @@ elif menu == "View History":
                 
                 c1, c2, c3 = st.columns(3)
                 bugs_count = len(res.get("bug_report", {}).get("broken_links", []) or [])
-                c1.metric("Broken Links", bugs_count)
-                c2.info(f"ID: {record['id']}")
+                score = res.get("seo_score_data", {}).get("seo_score", "N/A")
+                c1.metric("SEO Score", f"{score}/100")
+                c2.metric("Broken Links", bugs_count)
                 c3.write(f"**Date:** {record['created_at'][:19]}")
+                st.info(f"ID: {record['id']}")
                 
                 st.write("**AI Summary:**")
                 st.write(res.get("ai_insights", {}).get("bug_summary", "No summary available"))
