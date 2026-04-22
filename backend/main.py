@@ -15,27 +15,6 @@ app = FastAPI(title="AI-Based Intelligent QA Automation API")
 def read_root():
     return {"message": "API is running"}
 
-@app.get("/db-test")
-def test_db_connection(db: Session = Depends(get_db)):
-    try:
-        # Create a sample record
-        sample_result = TestResult(
-            url="https://example.com",
-            result_json=json.dumps({"status": "test", "score": 100})
-        )
-        db.add(sample_result)
-        db.commit()
-        db.refresh(sample_result)
-        
-        return {
-            "status": "success",
-            "message": "Database connection and insert successful",
-            "inserted_id": sample_result.id
-        }
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
 # Pydantic model for input
 class AnalysisRequest(BaseModel):
     url: str

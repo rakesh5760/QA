@@ -66,10 +66,6 @@ if menu == "Run New Analysis":
     if st.session_state.last_result:
         result = st.session_state.last_result
         
-        # DEBUG: Show raw data if needed
-        with st.sidebar.expander("🛠️ Raw Data Debug"):
-            st.json(result)
-        
         # Layout
         col1, col2 = st.columns([2, 1])
         
