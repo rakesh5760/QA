@@ -71,6 +71,3 @@ An end-to-end automated testing system that uses **Playwright**, **BeautifulSoup
 -   `screenshots/`: Local storage for website screenshots captured during analysis.
 -   `tests/`: Verification and debug scripts for different modules.
 
-## 🛡️ License
-
-This project is licensed under the MIT License.
