@@ -110,6 +110,11 @@ async def analyze_website(url: str):
                 "issues": qa_issues
             }
 
+            # Extract visible text for AI Content Analysis
+            page_text = await page.inner_text("body")
+            # Truncate to avoid exceeding LLM context limits (10k chars is usually safe)
+            results["page_text"] = page_text[:10000]
+
             # Extract full HTML for SEO Analysis
             html_content = await page.content()
             results["seo_analysis"] = analyze_seo(html_content)
@@ -143,7 +148,7 @@ async def analyze_website(url: str):
             results["bug_report"] = await asyncio.to_thread(detect_bugs, results["links"])
 
             # AI Insights
-            results["ai_insights"] = await asyncio.to_thread(get_ai_insights, results["seo_analysis"], results["bug_report"])
+            results["ai_insights"] = await asyncio.to_thread(get_ai_insights, results["seo_analysis"], results["bug_report"], results.get("page_text", ""))
 
             # Capture Full Page Screenshot
             screenshot_name = f"screenshot_{uuid.uuid4().hex[:8]}.png"
