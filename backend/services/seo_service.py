@@ -46,7 +46,6 @@ def analyze_seo(html_content: str):
         results["issues"].append("No <h1> tag found")
     elif results["headings"]["h1"] > 1:
         results["issues"].append(f"Multiple <h1> tags found ({results['headings']['h1']})")
-
     # 4. Analyze Images
     images = soup.find_all("img")
     results["total_images"] = len(images)
@@ -59,6 +58,33 @@ def analyze_seo(html_content: str):
     results["images_missing_alt"] = missing_alt
     if missing_alt > 0:
         results["issues"].append(f"{missing_alt} image(s) missing 'alt' attribute")
+
+    # 5. Canonical URL
+    canonical = soup.find("link", rel="canonical")
+    results["canonical"] = canonical.get("href") if canonical else None
+    if not results["canonical"]:
+        results["issues"].append("Missing <link rel='canonical'> tag")
+
+    # 6. Social Meta (Open Graph)
+    og_title = soup.find("meta", property="og:title")
+    og_desc = soup.find("meta", property="og:description")
+    og_image = soup.find("meta", property="og:image")
+    results["social_meta"] = {
+        "og:title": og_title.get("content") if og_title else None,
+        "og:description": og_desc.get("content") if og_desc else None,
+        "og:image": og_image.get("content") if og_image else None
+    }
+    if not og_title or not og_desc:
+        results["issues"].append("Missing Open Graph (og:title/og:description) meta tags")
+
+    # 7. Structured Data (JSON-LD)
+    scripts = soup.find_all("script", type="application/ld+json")
+    results["structured_data"] = {
+        "count": len(scripts),
+        "present": len(scripts) > 0
+    }
+    if not results["structured_data"]["present"]:
+        results["issues"].append("No JSON-LD structured data found")
 
     return results
 

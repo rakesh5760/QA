@@ -20,10 +20,10 @@ def get_ai_insights(seo_analysis, bug_report, page_text=""):
         return get_fallback_insights()
 
     system_prompt = (
-        "You are an AI-powered QA Automation Expert and Content Auditor. "
+        "You are an AI-powered QA Automation Expert. "
         "Analyze the provided website data and respond ONLY with a valid JSON object. "
-        "Your goal is to identify technical bugs, SEO gaps, and content quality issues. "
-        "Include the string 'json' in your response structure."
+        "Identity technical bugs, SEO gaps, and content quality issues. "
+        "Additionally, for any forms detected, generate a set of valid and invalid test data for every field."
     )
     
     user_prompt = f"""
@@ -31,15 +31,19 @@ def get_ai_insights(seo_analysis, bug_report, page_text=""):
     
     1. SEO Data: {json.dumps(seo_analysis)}
     2. Bug Report (Broken Links): {json.dumps(bug_report)}
-    3. Visible Page Text: {page_text[:5000]} # Limit text to ensure focus on key quality
+    3. Visible Page Text: {page_text[:5000]}
     
     Provide your analysis in the following JSON format:
     {{
-        "test_cases": ["5 specific functional test cases based on page structure"],
-        "bug_summary": "A concise 2-sentence technical summary of the biggest issues found.",
-        "fix_suggestions": ["3 actionable technical or SEO fix suggestions"],
-        "placeholder_issues": ["List any 'Lorem Ipsum', 'TBD', 'Coming Soon' or placeholder text found"],
-        "content_quality": "High/Medium/Low assessment with a brief note on grammar and professional tone."
+        "test_cases": ["5 specific functional test cases"],
+        "bug_summary": "Technical summary of issues.",
+        "fix_suggestions": ["3 actionable suggestions"],
+        "placeholder_issues": ["Lorem Ipsum, TBD, etc."],
+        "content_quality": "Detailed note on grammar, tone, and readability.",
+        "form_test_data": {{
+            "valid": [{{"field_name": "example", "value": "test@example.com"}}],
+            "invalid": [{{"field_name": "example", "value": "not-an-email", "reason": "Wrong format"}}]
+        }}
     }}
     """
 

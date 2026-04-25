@@ -2,28 +2,48 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 
+def check_special_link(url):
+    """
+    Validates mailto: and tel: formats.
+    """
+    if url.lower().startswith('mailto:'):
+        import re
+        parts = url.split(':')
+        if len(parts) < 2: return "Invalid Format"
+        email = parts[1].split('?')[0]
+        regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(regex, email):
+            return "Invalid Email Format"
+        return "Valid"
+    elif url.lower().startswith('tel:'):
+        import re
+        parts = url.split(':')
+        if len(parts) < 2: return "Invalid Format"
+        phone = parts[1]
+        # Basic regex for phone numbers
+        regex = r'^\+?[\d\s\-\(\)]{7,15}$'
+        if not re.match(regex, phone):
+            return "Invalid Phone Format"
+        return "Valid"
+    return "Unknown"
+
 def is_valid_url(url):
     """
-    Checks if a URL is valid for HTTP/HTTPS checking.
-    Strips fragments and ignores non-HTTP schemes.
+    Checks if a URL is valid for checking.
     """
     if not url or not isinstance(url, str):
         return False
         
-    # Remove fragments client-side anchors
     url = url.split('#')[0]
-    
-    # Ignore empty after stripping or simple anchors
     if not url or url.startswith(('#')):
         return False
         
-    # Explicitly ignore common non-http schemes
-    if url.lower().startswith(('javascript:', 'mailto:', 'tel:')):
-        return False
+    # Return true for special links so they can be processed by detect_bugs
+    if url.lower().startswith(('mailto:', 'tel:')):
+        return True
         
     try:
         result = urlparse(url)
-        # Must have scheme and domain
         return all([result.scheme in ['http', 'https'], result.netloc])
     except:
         return False
@@ -31,8 +51,15 @@ def is_valid_url(url):
 def check_link(url):
     """
     Sends a HEAD request with GET fallback to check if a link is valid.
-    Treats 403 and 999 (LinkedIn bot blocking) as valid.
+    Handles mailto: and tel: separately.
     """
+    if url.lower().startswith(('mailto:', 'tel:')):
+        status = check_special_link(url)
+        if status == "Valid":
+            return url, 200
+        else:
+            return url, 400 # Treat as broken if format is wrong
+            
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }

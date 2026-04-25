@@ -74,8 +74,6 @@ if menu == "Run New Analysis":
             # Backend keys: results["url"], results["page_title"]
             st.subheader(f"Target: {result.get('url', 'Unknown')}")
             st.info(f"Page Title: {result.get('page_title', 'No Title Found')}")
-            
-            # SEO Score Display
             score_data = result.get("seo_score_data", {})
             total_score = score_data.get("seo_score", 0)
             
@@ -83,14 +81,18 @@ if menu == "Run New Analysis":
             m1, m2, m3, m4, m5 = st.columns(5)
             m1.metric("Overall Score", f"{total_score}/100")
             
-            cats = score_data.get("category_scores", {})
-            m2.metric("On-Page", f"{cats.get('on_page', 0)}")
-            m3.metric("Technical", f"{cats.get('technical', 0)}")
-            m4.metric("Performance", f"{cats.get('performance', 0)}")
-            m5.metric("Accessibility", f"{cats.get('accessibility', 0)}")
+            # Use data from new sources
+            perf = result.get("performance_metrics", {})
+            sec = result.get("security_check", {})
+            acc = result.get("accessibility_audit", {})
+            
+            m2.metric("Technical Score", f"{score_data.get('category_scores', {}).get('technical', 0)}")
+            m3.metric("Load Time", f"{perf.get('load_time_s', 0)}s")
+            m4.metric("Security", f"✓" if sec.get("is_https") else "✗")
+            m5.metric("Access. Score", f"{acc.get('score', 0)}")
             st.write("---")
 
-            tabs = st.tabs(["💡 AI Insights", "🔍 SEO Analysis", "❌ Bug Report", "🛡️ QA Health Audit"])
+            tabs = st.tabs(["💡 AI Analysis", "🔍 SEO", "🛡️ Security", "🎨 Accessibility", "🚀 Performance", "❌ Bugs"])
             
             with tabs[0]:
                 ai = result.get("ai_insights", {}) or {}
@@ -98,128 +100,100 @@ if menu == "Run New Analysis":
                 st.write(ai.get("bug_summary", "AI analysis unavailable."))
                 
                 st.write("### 🛠️ Suggested Fixes")
-                fixes = ai.get("fix_suggestions", []) or []
-                if not fixes: st.write("No suggestions available.")
-                for fix in fixes:
-                    if isinstance(fix, dict):
-                        st.write(f"- **{fix.get('description', 'Fix')}**")
-                    else:
-                        st.write(f"- {fix}")
-                
+                for fix in ai.get("fix_suggestions", []): st.write(f"- {fix}")
+
                 st.write("### 📝 Functional Test Cases")
-                tcs = ai.get("test_cases", []) or []
-                if not tcs: st.write("No test cases generated.")
-                for tc in tcs:
-                    if isinstance(tc, dict):
-                        st.write(f"- **{tc.get('name', 'Test Case')}**: {tc.get('expected_result', 'N/A')}")
-                    else:
-                        st.write(f"- {tc}")
+                for tc in ai.get("test_cases", []): st.write(f"- {tc}")
+
+                if "form_test_data" in ai:
+                    st.write("### 📋 AI Form Lab (Test Data)")
+                    form_data = ai["form_test_data"]
+                    with st.expander("Show Valid Payloads"):
+                        for item in form_data.get("valid", []): st.write(f"- {item.get('field_name')}: `{item.get('value')}`")
+                    with st.expander("Show Invalid Payloads"):
+                        for item in form_data.get("invalid", []): st.write(f"- {item.get('field_name')}: `{item.get('value')}` ({item.get('reason')})")
                         
             with tabs[1]:
                 seo = result.get("seo_analysis", {}) or {}
+                st.write(f"**Canonical:** `{seo.get('canonical', 'Missing')}`")
                 st.write(f"**Meta Description:** {seo.get('meta_description', 'Missing')}")
+                
+                st.write("#### Social Meta (Open Graph)")
+                sm = seo.get("social_meta", {})
+                st.write(f"- **Title:** {sm.get('og:title', 'N/A')}")
+                st.write(f"- **Desc:** {sm.get('og:description', 'N/A')}")
                 
                 st.write("#### Heading Counts")
                 h_cols = st.columns(6)
-                # Backend key: results["seo_analysis"]["headings"] (dict with h1, h2, etc.)
                 headings = seo.get("headings", {}) or {}
-                for i in range(1, 7):
-                    count = headings.get(f"h{i}", 0)
-                    h_cols[i-1].metric(f"H{i}", count)
-                    
-                st.write("#### Image Issues")
-                img_total = seo.get("total_images", 0)
-                img_missing = seo.get("images_missing_alt", 0)
-                st.metric("Images without Alt Text", f"{img_missing}/{img_total}", delta=img_missing, delta_color="inverse")
+                for i in range(1, 7): h_cols[i-1].metric(f"H{i}", headings.get(f"h{i}", 0))
                 
             with tabs[2]:
+                sec = result.get("security_check", {})
+                st.write("#### Security Headers")
+                if "error" in sec:
+                    st.error(sec["error"])
+                else:
+                    for h, present in sec.get("headers", {}).items():
+                        st.write(f"{'✅' if present else '❌'} **{h}**")
+                    if sec.get("missing_headers"):
+                        st.warning(f"Missing headers: {', '.join(sec['missing_headers'])}")
+                    st.write(f"HTTPS Enforced: {'✅' if sec.get('is_https') else '❌'}")
+            
+            with tabs[3]:
+                acc = result.get("accessibility_audit", {})
+                if "error" in acc:
+                    st.error(acc["error"])
+                else:
+                    st.metric("Axe Accessibility Score", f"{acc.get('score', 0)}/100")
+                    st.write(f"**Passes:** {acc.get('passes_count', 0)} checks")
+                    st.write("#### Violations Found")
+                    for v in acc.get("violations", []):
+                        with st.expander(f"{v['id']} ({v['impact']})"):
+                            st.write(f"**{v['description']}**")
+                            st.write(f"Affected nodes: {v['nodes_count']}")
+
+            with tabs[4]:
+                perf = result.get("performance_metrics", {})
+                p1, p2, p3 = st.columns(3)
+                p1.metric("TTFB", f"{perf.get('ttfb_ms', 0)}ms")
+                p2.metric("FCP", f"{perf.get('fcp_ms', 0)}ms")
+                p3.metric("Window Load", f"{perf.get('window_load_ms', 0)}ms")
+                
+                qa = result.get("qa_checks", {})
+                st.write("#### Resource Errors (404s/Failed Load)")
+                res_errs = qa.get("resource_errors", [])
+                if res_errs:
+                    for r in res_errs: st.error(f"{r['resource_type']}: {r['url']} ({r['error']})")
+                else:
+                    st.success("All resources loaded successfully.")
+
+            with tabs[5]:
                 bugs = result.get("bug_report", {}) or {}
                 st.metric("Total Links Checked", bugs.get("total_links_checked", 0))
-                
-                c1, c2 = st.columns(2)
                 broken = bugs.get("broken_links", []) or []
                 server = bugs.get("server_errors", []) or []
-                
-                c1.error(f"Broken Links (4xx): {len(broken)}")
                 if broken:
-                    for b in broken[:10]:
-                        url_val = b.get('url', 'N/A') if isinstance(b, dict) else str(b)
-                        st.write(f"- {url_val}")
-                                
-                c2.warning(f"Server Errors (5xx): {len(server)}")
+                    st.error(f"Broken Links: {len(broken)}")
+                    for b in broken[:15]: st.write(f"- {b['url']} ({b['status_code']})")
                 if server:
-                    for s in server[:10]:
-                        url_val = s.get('url', 'N/A') if isinstance(s, dict) else str(s)
-                        st.write(f"- {url_val}")
-
-            with tabs[3]:
-                qa = result.get("qa_checks", {})
-                
-                st.write("### 🚀 Speed & Status")
-                c1, c2 = st.columns(2)
-                c1.metric("Load Time", f"{qa.get('load_time', 0)}s")
-                c2.metric("Page Status", qa.get("page_status", "Unknown"))
-                
-                st.write("### 🧩 UI Elements")
-                ui = qa.get("ui_elements", {})
-                u1, u2, u3 = st.columns(3)
-                u1.metric("Buttons", ui.get("buttons_count", 0))
-                u2.metric("Input Fields", ui.get("inputs_count", 0))
-                u3.metric("Forms", ui.get("forms_count", 0))
-                
-                if ui.get("buttons_missing_label", 0) > 0:
-                    st.warning(f"⚠️ {ui.get('buttons_missing_label')} buttons are missing text or labels!")
-
-                st.write("### 📋 QA Issues")
-                issues = qa.get("issues", [])
-                if issues:
-                    for issue in issues:
-                        st.write(f"- {issue}")
-                else:
-                    st.success("No automated QA issues detected.")
-
-                st.write("### 💻 Console Logs")
-                errs = qa.get("console_errors", [])
-                warns = qa.get("console_warnings", [])
-                
-                if errs:
-                    st.error(f"Errors ({len(errs)})")
-                    for e in errs[:10]: st.code(e)
-                if warns:
-                    st.warning(f"Warnings ({len(warns)})")
-                    for w in warns[:10]: st.code(w)
-                if not errs and not warns:
-                    st.info("No console logs captured.")
-
-            # Added Technical & Performance info at the bottom of the overview area
-            with st.expander("🛠️ Technical & Performance Details"):
-                seo_analysis = result.get("seo_analysis", {})
-                issues = seo_analysis.get("issues", [])
-                if issues:
-                    st.write("**Identified Issues:**")
-                    for issue in issues:
-                        st.write(f"- {issue}")
-                else:
-                    st.success("No major SEO issues identified!")
+                    st.warning(f"Server Errors: {len(server)}")
+                    for s in server[:15]: st.write(f"- {s['url']} ({s['status_code']})")
 
         with col2:
-            st.header("📸 Screenshot")
-            screenshot_path = result.get("screenshot_path")
-            if screenshot_path:
-                # Normalize path separators for the current OS
-                clean_path = screenshot_path.replace("\\", "/").replace("//", "/")
-                # Ensure we have the base screenshots/ directory
-                if os.path.exists(clean_path):
-                    st.image(clean_path, use_container_width=True)
+            st.header("📸 Screenshot View")
+            shots = result.get("screenshots", {})
+            if isinstance(shots, dict) and shots:
+                bp = st.selectbox("Select Breakpoint", list(shots.keys()))
+                path = shots[bp]
+                if os.path.exists(path):
+                    st.image(path, caption=f"View: {bp}", use_container_width=True)
                 else:
-                    # Try relative to current wd
-                    alt_path = os.path.basename(clean_path)
-                    if os.path.exists(f"screenshots/{alt_path}"):
-                        st.image(f"screenshots/{alt_path}", use_container_width=True)
-                    else:
-                        st.warning(f"Screenshot not found: {clean_path}")
+                    st.warning(f"File not found: {path}")
+            elif result.get("screenshot_path"): # Fallback for old records
+                st.image(result["screenshot_path"], use_container_width=True)
             else:
-                st.warning("No screenshot available.")
+                st.warning("No screenshots available.")
 
 elif menu == "View History":
     st.title("📜 Past Analyses")

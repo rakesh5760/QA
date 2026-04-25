@@ -17,7 +17,7 @@ if not os.path.exists(SCREENSHOT_DIR):
 async def analyze_website(url: str):
     """
     Launches a browser, navigates to the URL, extracts basic data, 
-    and captures a screenshot.
+    and captures screenshots at multiple breakpoints.
     """
     results = {
         "url": url,
@@ -25,144 +25,172 @@ async def analyze_website(url: str):
         "links": [],
         "console_errors": [],
         "console_warnings": [],
-        "screenshot_path": "",
+        "resource_errors": [],
+        "screenshots": {},
         "seo_analysis": {},
         "seo_score_data": {},
         "qa_checks": {},
+        "accessibility_audit": {},
+        "performance_metrics": {},
+        "security_check": {},
         "bug_report": {},
         "ai_insights": {}
     }
 
     async with async_playwright() as p:
-        # Launch Chromium (headless by default)
         browser = await p.chromium.launch()
-        context = await browser.new_context()
+        # Start with a desktop context
+        context = await browser.new_context(viewport={'width': 1920, 'height': 1080})
         page = await context.new_page()
 
-        # Capture console logs (errors and warnings)
+        # 1. Error Tracking
         def handle_console(msg):
             if msg.type == "error":
                 results["console_errors"].append(msg.text)
             elif msg.type == "warning":
                 results["console_warnings"].append(msg.text)
 
+        def handle_request_failed(request):
+            results["resource_errors"].append({
+                "url": request.url,
+                "error": request.failure,
+                "resource_type": request.resource_type
+            })
+
         page.on("console", handle_console)
+        page.on("requestfailed", handle_request_failed)
 
         try:
-            # Navigate to the URL and measure load time
+            # 2. Performance & Navigation
             start_time = time.time()
             response = await page.goto(url, wait_until="networkidle", timeout=60000)
             load_time = time.time() - start_time
             
             page_status = response.status if response else 0
 
-            # Extract Page Title
-            results["page_title"] = await page.title()
+            # 3. Capture Core Web Vitals (Simple)
+            vitals = await page.evaluate("""() => {
+                const nav = performance.getEntriesByType('navigation')[0];
+                const paint = performance.getEntriesByType('paint');
+                const fcp = paint.find(entry => entry.name === 'first-contentful-paint');
+                
+                return {
+                    ttfb: nav ? nav.responseStart - nav.requestStart : 0,
+                    fcp: fcp ? fcp.startTime : 0,
+                    dom_ready: nav ? nav.domContentLoadedEventEnd - nav.fetchStart : 0,
+                    window_load: nav ? nav.loadEventEnd - nav.fetchStart : 0
+                };
+            }""")
+            results["performance_metrics"] = {
+                "load_time_s": round(load_time, 2),
+                "ttfb_ms": round(vitals["ttfb"], 2),
+                "fcp_ms": round(vitals["fcp"], 2),
+                "dom_ready_ms": round(vitals["dom_ready"], 2),
+                "window_load_ms": round(vitals["window_load"], 2)
+            }
 
-            # Extract All Links
+            # 4. Accessibility Audit (Axe-Core)
+            # Fetch axe-core from CDN for injection
+            try:
+                axe_script_url = "https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.8.2/axe.min.js"
+                axe_script = requests.get(axe_script_url, timeout=5).text
+                await page.add_script_tag(content=axe_script)
+                axe_results = await page.evaluate("async () => await axe.run()")
+                results["accessibility_audit"] = {
+                    "score": 100 - (len(axe_results.get("violations", [])) * 5), # Simple heuristic
+                    "violations": [
+                        {
+                            "id": v["id"],
+                            "impact": v["impact"],
+                            "description": v["description"],
+                            "nodes_count": len(v["nodes"])
+                        } for v in axe_results.get("violations", [])
+                    ],
+                    "passes_count": len(axe_results.get("passes", []))
+                }
+            except Exception as axe_err:
+                results["accessibility_audit"] = {"error": f"Failed to run axe audit: {str(axe_err)}"}
+
+            # 5. Security Header Check
+            try:
+                sec_res = requests.get(url, timeout=10, verify=True)
+                headers = sec_res.headers
+                results["security_check"] = {
+                    "is_https": url.startswith("https://"),
+                    "headers": {
+                        "HSTS": "Strict-Transport-Security" in headers,
+                        "CSP": "Content-Security-Policy" in headers,
+                        "X-Frame-Options": "X-Frame-Options" in headers,
+                        "X-Content-Type": "X-Content-Type-Options" in headers,
+                        "Referrer-Policy": "Referrer-Policy" in headers
+                    },
+                    "missing_headers": [h for h in ["Strict-Transport-Security", "Content-Security-Policy", "X-Frame-Options", "X-Content-Type-Options"] if h not in headers]
+                }
+            except Exception as sec_err:
+                results["security_check"] = {"error": f"Security check failed: {str(sec_err)}"}
+
+            # 6. Basic Data Extraction
+            results["page_title"] = await page.title()
             links = await page.query_selector_all("a")
             for link in links:
                 href = await link.get_attribute("href")
                 if href:
-                    # Resolve relative URLs to absolute
                     from urllib.parse import urljoin
-                    absolute_url = urljoin(url, href)
-                    results["links"].append(absolute_url)
+                    results["links"].append(urljoin(url, href))
 
-            # --- QA Enhancement Module Checks ---
-            # 1. UI Elements Counts
+            # UI Elements Counts & Basic QA
             buttons = await page.query_selector_all("button, input[type='button'], input[type='submit']")
             inputs = await page.query_selector_all("input:not([type='button']):not([type='submit']), select, textarea")
             forms = await page.query_selector_all("form")
             
-            # Accessibility: Button text/label check
-            buttons_missing_label = 0
-            for btn in buttons:
-                text = await btn.inner_text()
-                label = await btn.get_attribute("aria-label")
-                title = await btn.get_attribute("title")
-                if not text.strip() and not label and not title:
-                    buttons_missing_label += 1
-
             qa_issues = []
-            if load_time > 3:
-                qa_issues.append(f"Slow page load: {load_time:.2f}s (Target: < 3s)")
-            if page_status != 200:
-                qa_issues.append(f"Main page returned non-200 status: {page_status}")
-            if len(buttons) == 0:
-                qa_issues.append("No buttons found on the page")
-            if len(forms) == 0:
-                qa_issues.append("No forms found on the page")
-            if buttons_missing_label > 0:
-                qa_issues.append(f"{buttons_missing_label} button(s) missing text or aria-label")
-
+            if load_time > 3: qa_issues.append(f"Slow page load: {load_time:.2f}s")
+            if page_status != 200: qa_issues.append(f"Status {page_status}")
+            
             results["qa_checks"] = {
                 "console_errors": results["console_errors"],
-                "console_warnings": results["console_warnings"],
-                "load_time": round(load_time, 2),
-                "page_status": page_status,
-                "ui_elements": {
-                    "buttons_count": len(buttons),
-                    "inputs_count": len(inputs),
-                    "forms_count": len(forms),
-                    "buttons_missing_label": buttons_missing_label
-                },
+                "resource_errors": results["resource_errors"],
+                "ui_elements": {"buttons": len(buttons), "inputs": len(inputs), "forms": len(forms)},
                 "issues": qa_issues
             }
 
-            # Extract visible text for AI Content Analysis
-            page_text = await page.inner_text("body")
-            # Truncate to avoid exceeding LLM context limits (10k chars is usually safe)
-            results["page_text"] = page_text[:10000]
+            # 7. Multi-Breakpoint Screenshots
+            breakpoints = {
+                "desktop": (1920, 1080),
+                "tablet": (768, 1024),
+                "mobile": (375, 812)
+            }
+            
+            for bp_name, (width, height) in breakpoints.items():
+                await page.set_viewport_size({"width": width, "height": height})
+                await asyncio.sleep(0.5) # Allow for layout shifts
+                shot_name = f"{bp_name}_{uuid.uuid4().hex[:6]}.png"
+                shot_path = os.path.join(SCREENSHOT_DIR, shot_name)
+                await page.screenshot(path=shot_path, full_page=True)
+                results["screenshots"][bp_name] = shot_path
 
-            # Extract full HTML for SEO Analysis
+            # SEO & AI Integration
             html_content = await page.content()
             results["seo_analysis"] = analyze_seo(html_content)
-
-            # --- Technical & Performance Metrics for Scoring ---
+            
             from urllib.parse import urlparse
             base_url = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
-            
-            def check_file(url_to_check):
-                try:
-                    r = requests.get(url_to_check, timeout=5)
-                    return r.status_code == 200
-                except:
-                    return False
-
-            has_sitemap = await asyncio.to_thread(check_file, f"{base_url}/sitemap.xml")
-            has_robots = await asyncio.to_thread(check_file, f"{base_url}/robots.txt")
-            
             tech_data = {
-                "is_https": url.startswith("https://"),
-                "has_sitemap": has_sitemap,
-                "has_robots": has_robots,
+                "is_https": results["security_check"].get("is_https", False),
+                "has_sitemap": await asyncio.to_thread(lambda: requests.get(f"{base_url}/sitemap.xml", timeout=5).status_code == 200),
+                "has_robots": await asyncio.to_thread(lambda: requests.get(f"{base_url}/robots.txt", timeout=5).status_code == 200),
                 "load_time": load_time,
                 "html_size_kb": len(html_content) / 1024
             }
-            
-            # Calculate SEO Score
             results["seo_score_data"] = calculate_seo_score(results["seo_analysis"], tech_data)
-
-            # Bug Detection (Broken links check)
             results["bug_report"] = await asyncio.to_thread(detect_bugs, results["links"])
-
-            # AI Insights
-            results["ai_insights"] = await asyncio.to_thread(get_ai_insights, results["seo_analysis"], results["bug_report"], results.get("page_text", ""))
-
-            # Capture Full Page Screenshot
-            screenshot_name = f"screenshot_{uuid.uuid4().hex[:8]}.png"
-            screenshot_path = os.path.join(SCREENSHOT_DIR, screenshot_name)
-            await page.screenshot(path=screenshot_path, full_page=True)
-            results["screenshot_path"] = screenshot_path
+            results["ai_insights"] = await asyncio.to_thread(get_ai_insights, results["seo_analysis"], results["bug_report"], (await page.inner_text("body"))[:10000])
 
         except Exception as e:
-            # If navigation fails, we still want to close the browser
-            # but we'll re-raise or handle the specific error information
-            raise Exception(f"Failed to analyze website: {str(e)}")
-
+            import traceback
+            traceback.print_exc()
+            raise Exception(f"Analysis failed: {str(e)}")
         finally:
-            # Ensure the browser is closed even if an error occurs
             await browser.close()
 
     return results
