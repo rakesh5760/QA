@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static QA Automator Report</title>
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --success: #10B981;
+            --danger: #EF4444;
+            --warning: #F59E0B;
+            --bg: #F3F4F6;
+            --card: #FFFFFF;
+            --text: #1F2937;
+            --text-light: #6B7280;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1, h2 {
+            color: var(--primary);
+        }
+        .summary-cards {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: var(--card);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            flex: 1;
+            text-align: center;
+        }
+        .card.pass h3 { color: var(--success); font-size: 2rem; margin: 10px 0; }
+        .card.fail h3 { color: var(--danger); font-size: 2rem; margin: 10px 0; }
+        .card.total h3 { color: var(--primary); font-size: 2rem; margin: 10px 0; }
+        
+        .section {
+            background: var(--card);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 2px solid var(--bg);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .item-list {
+            list-style: none;
+            padding: 0;
+        }
+        .item {
+            padding: 15px;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        .item.pass { border-left: 5px solid var(--success); }
+        .item.fail { border-left: 5px solid var(--danger); }
+        
+        .tag {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            background: #E5E7EB;
+            margin-right: 10px;
+        }
+        .tag.A11Y { background: #DBEAFE; color: #1E3A8A; }
+        .tag.SEO { background: #D1FAE5; color: #065F46; }
+        .tag.SECURITY { background: #FEF3C7; color: #92400E; }
+        .tag.PERFORMANCE { background: #E0E7FF; color: #3730A3; }
+        .tag.SPELLING { background: #FCE7F3; color: #9D174D; }
+        .tag.FORM_VALID, .tag.FORM_INVALID { background: #F3E8FF; color: #6B21A8; }
+        
+        .screenshot {
+            margin-top: 10px;
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        pre {
+            background: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Static QA Automator Report</h1>
+        
+        <div class="summary-cards">
+            <div class="card total">
+                <div>Pages Scanned</div>
+                <h3>{{ data.summary.total_pages }}</h3>
+            </div>
+            <div class="card pass">
+                <div>Automated Pass</div>
+                <h3>{{ data.summary.total_passed }}</h3>
+            </div>
+            <div class="card fail">
+                <div>Automated Fail</div>
+                <h3>{{ data.summary.total_failed }}</h3>
+            </div>
+        </div>
+
+        <!-- FAILED SECTION -->
+        <div class="section">
+            <h2 class="section-title">❌ Automated Fail (Needs Action)</h2>
+            {% if data.fail_items|length == 0 %}
+                <p>No automated failures detected! Great job.</p>
+            {% else %}
+                <ul class="item-list">
+                {% for item in data.fail_items %}
+                    <li class="item fail">
+                        <div>
+                            <span class="tag {{ item.type }}">{{ item.type }}</span>
+                            <strong>{{ item.url }}</strong>
+                        </div>
+                        
+                        <div style="margin-top: 10px;">
+                            {% if item.details.error_msg %}
+                                <p style="color: var(--danger)">Error: {{ item.details.error_msg }}</p>
+                            {% endif %}
+                            
+                            {% if item.details.issues %}
+                                <ul>
+                                {% for issue in item.details.issues %}
+                                    <li>
+                                        {% if issue.message %}
+                                            {{ issue.message }} (Context: "{{ issue.context }}")
+                                        {% else %}
+                                            {{ issue }}
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                                </ul>
+                            {% endif %}
+                            
+                            {% if item.details.missing_headers %}
+                                <p>Missing Headers: {{ item.details.missing_headers|join(', ') }}</p>
+                            {% endif %}
+                            
+                            {% if item.details.screenshot %}
+                                <img src="../{{ item.details.screenshot }}" class="screenshot" alt="Error Screenshot">
+                            {% endif %}
+                        </div>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+
+        <!-- PASSED SECTION -->
+        <div class="section">
+            <h2 class="section-title">✅ Automated Pass</h2>
+            {% if data.pass_items|length == 0 %}
+                <p>No automated passes.</p>
+            {% else %}
+                <ul class="item-list">
+                {% for item in data.pass_items %}
+                    <li class="item pass">
+                        <div>
+                            <span class="tag {{ item.type }}">{{ item.type }}</span>
+                            <strong>{{ item.url }}</strong>
+                        </div>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+
+        <!-- HUMAN REVIEW SECTION -->
+        <div class="section">
+            <h2 class="section-title">🧑‍💻 Requires Human Review</h2>
+            <p>The following items cannot be fully automated and require manual verification:</p>
+            <ul class="item-list">
+                {% for review in data.human_review %}
+                    <li class="item">
+                        <label><input type="checkbox"> {{ review }}</label>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+        
+    </div>
+</body>
+</html>

@@ -1,0 +1,28 @@
+crawl:
+  max_depth: 3
+  max_pages: 100
+  respect_robots: true
+
+timeouts:
+  page_load: 30000
+  click: 5000
+
+thresholds:
+  lighthouse_performance: 0.7
+  max_image_size_kb: 200
+  max_external_links: 50
+
+scanners:
+  enable_accessibility: true
+  enable_seo: true
+  enable_security: true
+  enable_spelling: true  # Using public API limited to 2000 chars per page
+  enable_performance: true
+
+ai:
+  groq_model: "llama-3.3-70b-versatile"
+  temperature: 0.3
+
+report:
+  output_dir: "reports"
+  screenshot_on_failure: true
