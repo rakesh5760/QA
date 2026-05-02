@@ -77,6 +77,8 @@ class Reporter:
                         fail_items.append(item)
                         
         template_data = {
+            "base_url": results.get("base_url", "Unknown URL"),
+            "description": results.get("description", ""),
             "summary": {
                 "total_pages": len(results.get("pages", [])),
                 "total_passed": len(pass_items),

@@ -111,6 +111,18 @@
     <div class="container">
         <h1>Static QA Automator Report</h1>
         
+        <div style="margin-bottom: 25px; padding: 15px; background: var(--card); border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+            <p style="margin: 0 0 10px 0; font-size: 1.1rem;">
+                <strong>Target URL:</strong> 
+                <a href="{{ data.base_url }}" target="_blank" style="color: var(--primary); text-decoration: none;">{{ data.base_url }}</a>
+            </p>
+            {% if data.description %}
+            <p style="margin: 0; color: var(--text-light);">
+                <strong>Description:</strong> {{ data.description }}
+            </p>
+            {% endif %}
+        </div>
+        
         <div class="summary-cards">
             <div class="card total">
                 <div>Pages Scanned</div>
